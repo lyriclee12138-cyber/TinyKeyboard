@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#2563eb">
+<title>TinyKeyboard</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--line:#e2e5e9;--tx:#171a1f;--dim:#6b7280;--ac:#2563eb;--key:#fbfcfd}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+ padding:0 10px calc(14px + env(safe-area-inset-bottom))}
+header{display:flex;justify-content:space-between;align-items:baseline;padding:10px 2px 6px}
+h1{font-size:16px;margin:0;font-weight:600}
+#fw{font-size:11px;font-weight:400;color:#9aa1ac}
+#st{font-size:11px;color:var(--dim);text-align:right}
+.tabs{display:flex;gap:6px;position:sticky;top:0;z-index:20;background:var(--bg);padding:6px 0 8px;margin-bottom:2px}
+.tabs button{flex:1;padding:10px 4px;font-size:14px;font-weight:600;border:1px solid var(--line);border-radius:10px;
+ background:#fff;color:#404650;font-family:inherit}
+.tabs button.active{background:var(--ac);border-color:var(--ac);color:#fff}
+.page{display:none}
+.page.active{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:10px}
+textarea{width:100%;min-height:132px;max-height:40vh;border:1px solid var(--line);border-radius:10px;
+ padding:11px;font:16px/1.55 inherit;resize:vertical;background:var(--key);color:var(--tx);outline:none}
+textarea:focus{border-color:var(--ac)}
+.row{display:flex;gap:7px;margin-top:8px;flex-wrap:wrap}
+button.btn{border:0;border-radius:10px;padding:11px 10px;font-size:14px;font-weight:600;background:#eceff3;
+ color:#20242a;flex:1;font-family:inherit;transition:transform .06s,filter .12s}
+button.btn:active{transform:scale(.97);filter:brightness(.94)}
+button.btn:disabled{opacity:.5}
+button.btn.primary{background:var(--ac);color:#fff}
+button.btn.ghost{flex:0 0 auto;font-weight:500;color:var(--dim)}
+button.btn.warn{background:#fdecec;color:#b42318}
+.opt{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:13px;color:#39404a;flex-wrap:wrap}
+select{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 8px;font-size:13px;font-family:inherit;color:var(--tx)}
+.hint{display:none;margin-top:8px;padding:8px 10px;border-radius:8px;background:#fff7e6;color:#8a5a00;font-size:12.5px}
+.hint.on{display:block}
+.note{font-size:12px;color:var(--dim);margin:6px 2px 0}
+code{background:#f0f3f7;padding:1px 4px;border-radius:4px}
+.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.keys button{padding:11px 4px;font-size:13px;font-weight:500;background:#f0f3f7;border:0;border-radius:9px;
+ font-family:inherit;color:#20242a}
+.keys button:active{background:#dfe6f0}
+
+/* ---------- 75% 键盘 ---------- */
+#rotate{display:none;background:#fff7e6;color:#8a5a00;padding:7px 10px;border-radius:8px;font-size:12px;margin-bottom:8px}
+@media (orientation:portrait){#rotate{display:block}}
+.kbbar{display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.kbbar button{padding:7px 11px;font-size:12.5px;border:1px solid var(--line);background:#fff;border-radius:8px;
+ font-family:inherit;color:#404650}
+.kbbar button.on{background:var(--ac);border-color:var(--ac);color:#fff}
+.kbbar .spacer{flex:1}
+.kbwrap{background:#fff;border:1px solid var(--line);border-radius:12px;padding:7px;overflow-x:auto}
+.kbrow{display:flex;gap:3px;margin-bottom:3px}
+.kbrow:last-child{margin-bottom:0}
+.key{flex:1 1 0;min-width:0;height:36px;border:1px solid #dfe3e9;border-bottom-width:2px;border-radius:6px;
+ background:var(--key);font-family:inherit;font-size:11.5px;color:#22262b;padding:0 2px;
+ display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;
+ user-select:none;touch-action:manipulation;cursor:pointer}
+.key .sub{font-size:8.5px;color:#9aa1ac;margin-top:1px}
+.key:active,.key.pressed{background:#d8e4ff;border-color:#9db9f5}
+.key.mod{background:#eef1f6}
+.key.mod.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.key.nav{background:#f3f5f8}
+@media (orientation:landscape) and (max-height:480px){.key{height:32px;font-size:11px} .kbrow{gap:2px}}
+
+/* ---------- 触控板 ---------- */
+#pad{position:relative;width:100%;height:44vh;min-height:210px;background:linear-gradient(145deg,#fafbfd,#eef1f6);
+ border:1px solid var(--line);border-radius:14px;touch-action:none;user-select:none;overflow:hidden}
+#pad .tip{position:absolute;left:0;right:52px;top:0;bottom:0;display:flex;align-items:center;justify-content:center;
+ color:#aab0ba;font-size:13px;pointer-events:none;text-align:center}
+#pad.act .tip{opacity:.3}
+#scroll{position:absolute;right:0;top:0;width:52px;height:100%;border-left:1px dashed #d8dde5;
+ background:rgba(37,99,235,.04);touch-action:none;display:flex;align-items:center;justify-content:center;
+ color:#9aa1ac;font-size:11px;line-height:1.35;text-align:center;user-select:none}
+.padbtns{display:grid;grid-template-columns:2fr 1fr 2fr;gap:7px;margin-top:8px}
+.padbtns button{padding:14px 4px;font-size:14px;font-weight:600;border:0;border-radius:10px;background:#eceff3;
+ font-family:inherit;color:#20242a}
+.padbtns button:active{background:#d8e4ff}
+#toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translate(-50%,16px);
+ background:#141821;color:#fff;padding:10px 16px;border-radius:999px;font-size:13.5px;
+ opacity:0;pointer-events:none;transition:.18s;z-index:30;max-width:90vw;text-align:center}
+#toast.on{opacity:.96;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>TinyKeyboard <span id="fw"></span></h1>
+  <span id="st">连接中…</span>
+</header>
+
+<div class="tabs">
+  <button data-tab="input" class="active">输入</button>
+  <button data-tab="keyboard">键盘</button>
+  <button data-tab="touchpad">触控板</button>
+</div>
+
+<!-- ==================== 输入 ==================== -->
+<section id="page-input" class="page active">
+  <div class="card">
+    <textarea id="ta" placeholder="在这里输入或粘贴文字，点「发送」后会被敲进电脑…&#10;含中文时自动转 base64"></textarea>
+    <div id="b64hint" class="hint">检测到中文 / 非 ASCII 字符，<b>整段文本将以 base64 格式发送</b>（电脑端需解码，见下方）</div>
+    <div class="row">
+      <button class="btn primary" id="bs" onclick="sendInput(false)">发送</button>
+      <button class="btn" id="be" onclick="sendInput(true)">发送 + 回车</button>
+      <button class="btn ghost" onclick="clearAll()">清空</button>
+    </div>
+    <div class="opt">
+      <label>速度
+        <select id="spd">
+          <option value="20">慢（BIOS）</option>
+          <option value="8">中</option>
+          <option value="3">快</option>
+          <option value="1" selected>极速</option>
+        </select>
+      </label>
+      <button class="btn ghost" id="capsbtn" onclick="toggleCaps()" style="padding:6px 10px;font-size:12px">Caps: 关</button>
+      <span style="font-size:11px;color:#8a919c">极速在复杂程序里可能丢字</span>
+    </div>
+    <div id="capshint" class="hint">检测到电脑的 <b>Caps Lock 已开启</b>（敲出来会全是大写）。发送文本前会自动关闭它，也可以点上面的按钮手动切换。</div>
+    <p class="note">若敲出来<b>全是大写</b>，说明电脑的 Caps Lock 开着：点上面的「Caps」按钮即可关掉（会自动检测，也会在发送前自动关闭）。</p>
+  </div>
+
+  <div class="card">
+    <div style="font-size:13px;font-weight:600;margin-bottom:6px">中文 / base64 解码</div>
+    <p class="note" style="margin:0 0 8px">HID 只能敲英文，中文会先编成 base64。电脑端用 <code>decode.py</code> 还原，只用到 Python 自带的 <code>base64</code> 和 <code>sys</code>，不装任何库。</p>
+    <div class="row">
+      <button class="btn" onclick="sendDecodeScript()">发送 decode.py 内容</button>
+    </div>
+    <p class="note">
+      ① 手机点「发送」把 base64 敲进电脑，另存为 <code>b64.txt</code>。<br>
+      ② 点上面按钮把 5 行代码敲进记事本，另存为 <code>decode.py</code>（和 txt 放一起）。<br>
+      ③ 命令行运行 <code>python decode.py b64.txt</code> → 生成 <code>decoded.txt</code>。
+    </p>
+    <details style="margin-top:8px">
+      <summary style="font-size:12.5px;color:var(--dim);cursor:pointer;padding:4px 0">查看将要发送的代码（发出去后可点开核对）</summary>
+      <pre id="scriptpre" style="margin:6px 0 0;padding:9px;background:#f6f8fa;border:1px solid var(--line);border-radius:8px;
+        overflow-x:auto;font:11.5px/1.5 Consolas,Monaco,monospace;white-space:pre;color:#20242a"></pre>
+      <p class="note" style="margin-top:4px">这 5 行固定用「慢」速发送，避免把引号、括号敲丢。敲完请与这里核对一遍再运行。</p>
+    </details>
+  </div>
+
+  <div class="card">
+    <div class="keys">
+      <button type="button" onclick="kbKey('enter')">Enter</button>
+      <button type="button" onclick="kbKey('tab')">Tab</button>
+      <button type="button" onclick="kbKey('esc')">Esc</button>
+      <button type="button" onclick="kbKey('backspace')">⌫</button>
+      <button type="button" onclick="kbKey('a','ctrl')">Ctrl+A</button>
+      <button type="button" onclick="kbKey('c','ctrl')">Ctrl+C</button>
+      <button type="button" onclick="kbKey('v','ctrl')">Ctrl+V</button>
+      <button type="button" onclick="kbKey('z','ctrl')">Ctrl+Z</button>
+      <button type="button" onclick="kbKey('s','ctrl')">Ctrl+S</button>
+      <button type="button" onclick="kbKey('f5')">F5</button>
+      <button type="button" onclick="kbKey('tab','alt')">Alt+Tab</button>
+      <button type="button" onclick="kbKey('delete')">Del</button>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 75% 键盘 ==================== -->
+<section id="page-keyboard" class="page">
+  <div id="rotate">建议横屏使用，按键会随屏幕宽度自动铺满。</div>
+  <div class="kbbar">
+    <button type="button" class="mod-chip" data-m="ctrl">Ctrl</button>
+    <button type="button" class="mod-chip" data-m="shift">Shift</button>
+    <button type="button" class="mod-chip" data-m="alt">Alt</button>
+    <button type="button" class="mod-chip" data-m="gui">Win</button>
+    <span class="spacer"></span>
+    <button type="button" onclick="clearMods()">清除修饰键</button>
+  </div>
+  <div class="kbwrap"><div id="kb"></div></div>
+  <div class="opt" style="margin-top:8px">
+    <label style="font-size:12.5px;display:flex;align-items:center;gap:6px;color:#39404a">
+      <input type="checkbox" id="oneshot"> 键盘上的修饰键「点一下」= 作用于下一次按键
+    </label>
+  </div>
+  <p class="note"><b>上方</b> Ctrl / Shift / Alt / Win 是粘滞开关：点一下变亮，下一次按键自动带上并清除。<br><b>键盘上</b>的 Ctrl / Shift / Alt / Win 默认就是<b>普通按键</b>：点一下敲一次，不保留状态；按住不放、另一根手指点字母也能出组合键。想要「点一下再点字母就出组合」请勾上面的选项。<br><b>Caps</b> 点一下切换电脑大小写（顶部状态会跟着变）。字母默认敲小写；退格和方向键长按连发。</p>
+</section>
+
+<!-- ==================== 触控板 ==================== -->
+<section id="page-touchpad" class="page">
+  <div class="card" style="padding:8px">
+    <div id="pad">
+      <div class="tip">在此区域滑动移动指针</div>
+      <div id="scroll">上<br>下<br>滚<br>动</div>
+    </div>
+    <div class="padbtns">
+      <button type="button" id="bl">左键</button>
+      <button type="button" id="bm">中键</button>
+      <button type="button" id="br">右键</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="opt">
+      <label>灵敏度
+        <select id="sens">
+          <option value="0.6">低</option>
+          <option value="1" selected>中</option>
+          <option value="1.8">高</option>
+          <option value="2.8">很高</option>
+        </select>
+      </label>
+      <span class="note" id="padst" style="margin:0">就绪</span>
+    </div>
+    <p class="note">触控区<b>只移动指针，不会触发点击</b>；左 / 中 / 右键请点下方三枚按钮。右侧窄条上下滑动 = 滚轮。</p>
+  </div>
+</section>
+
+<div id="toast"></div>
+
+<script>
+/* ====================== 通用 ====================== */
+var ta = document.getElementById('ta');
+var st = document.getElementById('st');
+var CHUNK = 400;
+
+function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+function toast(m){
+  var t = document.getElementById('toast');
+  t.textContent = m; t.classList.add('on');
+  clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove('on'); }, 1900);
+}
+async function post(url, body){
+  var r = await fetch(url, {method:'POST', headers:{'Content-Type':'text/plain;charset=UTF-8'}, body: body || ''});
+  try { return await r.json(); } catch(e) { return {ok:0}; }
+}
+function clearAll(){ ta.value=''; updateHint(); ta.focus(); }
+
+/* ===== Caps Lock =====
+ * HID 敲的是 US 扫描码，大小写由主机当前的 Caps Lock 状态决定。
+ * 主机开着 Caps 时小写会变大写（Python 脚本就全是错的），
+ * 状态由固件从主机的 LED 报告里读出来，经 /status 暴露为 caps。 */
+var capsOn = false, capsAutoFixed = false;
+function syncCapsUI(){
+  var b = document.getElementById('capsbtn');
+  if (b){ b.textContent = 'Caps: ' + (capsOn ? '开' : '关'); b.classList.toggle('warn', capsOn); }
+  document.getElementById('capshint').classList.toggle('on', capsOn);
+}
+async function toggleCaps(){
+  await post('/key', 'caps');
+  capsOn = !capsOn; capsAutoFixed = false; syncCapsUI();
+  toast(capsOn ? '已开启 Caps Lock' : '已关闭 Caps Lock');
+  setTimeout(poll, 900);
+}
+async function ensureCapsOff(){
+  if (!capsOn || capsAutoFixed) return;
+  capsAutoFixed = true;              // 主机没回 LED 时也不重复敲，避免把状态又翻回"开"
+  await post('/key', 'caps');        // 与文本进同一队列，先执行
+  await sleep(300);                  // 等主机处理完这次按键并回 LED 状态
+  capsOn = false; syncCapsUI();
+  toast('已关闭 Caps Lock，避免小写变大写');
+  setTimeout(poll, 1200);
+}
+
+/* 选项卡 */
+var tabs = document.querySelectorAll('.tabs button');
+function switchTab(name){
+  tabs.forEach(function(b){ b.classList.toggle('active', b.dataset.tab === name); });
+  document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
+  document.getElementById('page-' + name).classList.add('active');
+  try { localStorage.setItem('tk_tab', name); } catch(e){}
+}
+tabs.forEach(function(b){ b.addEventListener('click', function(){ switchTab(b.dataset.tab); }); });
+try { var saved = localStorage.getItem('tk_tab'); if (saved) switchTab(saved); } catch(e){}
+
+/* ====================== base64 ====================== */
+function hasNonAscii(s){ return /[^\x00-\x7F]/.test(s); }
+function toB64(s){
+  var bytes = new TextEncoder().encode(s), bin = '', CH = 0x8000;
+  for (var i = 0; i < bytes.length; i += CH) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+  }
+  return btoa(bin);
+}
+function updateHint(){
+  document.getElementById('b64hint').classList.toggle('on', hasNonAscii(ta.value));
+}
+ta.addEventListener('input', updateHint);
+
+/* 底层：把一段纯文本分块送到 /type，nl=true 时末尾补回车 */
+async function sendRaw(text, nl, label, forceDelay){
+  await ensureCapsOff();
+  var d = forceDelay || document.getElementById('spd').value;
+  var bs = document.getElementById('bs'), be = document.getElementById('be');
+  bs.disabled = be.disabled = true;
+  var off = 0, typed = 0, skipped = 0, tries = 0;
+  while (off < text.length){
+    var part = text.slice(off, off + CHUNK);
+    var j = await post('/type?d=' + d, part);
+    if (!j.ok){
+      if (++tries > 40){ toast('设备忙，已中止'); break; }
+      st.textContent = '设备忙，重试中…'; await sleep(150); continue;
+    }
+    tries = 0;
+    off += CHUNK; typed += j.typed; skipped += j.skipped;
+    st.textContent = '已发送 ' + typed + ' 字符…';
+  }
+  if (nl) await post('/key', 'enter');
+  bs.disabled = be.disabled = false;
+  toast((label || '完成：') + typed + ' 字符' + (skipped ? ('，跳过 ' + skipped + ' 个非 ASCII') : ''));
+  poll();
+  return typed;
+}
+
+async function sendInput(nl){
+  var v = ta.value;
+  if (!v.replace(/\s/g,'')){ toast('没有内容'); return; }
+  var b64 = hasNonAscii(v);
+  var text = b64 ? toB64(v) : v;
+  await sendRaw(text, nl, b64 ? 'base64 已发送：' : '已发送：');
+  if (b64) toast('已发送 base64（' + text.length + ' 字符），电脑端需解码');
+}
+
+/* decode.py：只做一件事 —— python decode.py 文件名 -> decoded.txt
+ * 只用 base64 + sys（都是 Python 自带），没有 glob/os/try/缩进/条件分支。
+ * 二进制读入后 b64decode 会自动忽略 BOM、CRLF 和空格。 */
+var DECODE_SCRIPT = [
+  'import base64, sys',
+  's = open(sys.argv[1], "rb").read()',
+  'd = base64.b64decode(s).decode("utf-8")',
+  'open("decoded.txt", "wb").write(d.encode("utf-8"))',
+  'print("OK: decoded.txt")',
+  ''
+].join('\n');
+
+/* 代码里引号括号多，固定用「慢」速 d=20 发，一个字符都不丢 */
+async function sendDecodeScript(){
+  var n = await sendRaw(DECODE_SCRIPT, false, 'decode.py 已发送：', 20);
+  if (n !== DECODE_SCRIPT.length){
+    toast('字符数不符（' + n + '/' + DECODE_SCRIPT.length + '），请再发一次');
+  } else {
+    toast('存成 decode.py，运行 python decode.py 文件名');
+  }
+}
+
+/* ====================== 快捷键 / 75% 键盘 ====================== */
+/* 上方 4 个 chip = 粘滞开关（点一下亮，下一次按键带上并自动清除）
+ * 键盘上的 Shift/Ctrl/Alt/Win = 普通按键：点一下就敲一次，不保留状态 */
+var stickyMods = new Set();
+var heldMods   = new Set();
+function modString(){
+  var s = new Set(stickyMods);
+  heldMods.forEach(function(m){ s.add(m); });
+  return Array.from(s).join(',');
+}
+function syncModChips(){
+  document.querySelectorAll('.mod-chip').forEach(function(b){
+    b.classList.toggle('on', stickyMods.has(b.dataset.m));
+  });
+}
+function clearMods(){ stickyMods.clear(); syncModChips(); }
+function toggleMod(m){
+  if (stickyMods.has(m)) stickyMods.delete(m); else stickyMods.add(m);
+  syncModChips();
+}
+document.querySelectorAll('.mod-chip').forEach(function(b){
+  b.addEventListener('click', function(){ toggleMod(b.dataset.m); });
+});
+
+async function kbKey(name, extra){
+  var m = modString();
+  if (extra) m = m ? (m + ',' + extra) : extra;
+  var j = await post('/key' + (m ? '?mod=' + m : ''), name);
+  if (stickyMods.size) clearMods();   // 只清粘滞开关；按住的修饰键不受影响
+  if (!j.ok) toast('发送失败');
+}
+
+/* 键盘内修饰键的「纯单击」：真的把这个键敲一次，并给明确反馈。
+ * 之前这里什么都不发，看起来就是「点了没反应」。
+ * 若按住期间另一根手指点了别的键（组合键），就不额外发这一下。 */
+function markHeldModsUsed(){
+  document.querySelectorAll('.key.mod.pressed').forEach(function(e){ e._comboUsed = true; });
+}
+var MOD_LABEL = {ctrl:'Ctrl', shift:'Shift', alt:'Alt', gui:'Win'};
+async function sendModKey(m){
+  var lab = MOD_LABEL[m] || m;
+  var one = document.getElementById('oneshot');
+  if (one && one.checked){
+    toggleMod(m);                       // 复用上方粘滞开关，作用于下一次按键
+    toast('下一次按键将带 ' + lab);
+    return;
+  }
+  var j = await post('/key', m);        // 固件发 modifier-only 的按下+抬起
+  toast(j.ok ? ('已发送 ' + lab + ' · 组合键请用上方开关') : '发送失败');
+}
+
+/* 75 配列：l=主标签 sub=上档 k=发送值 m=修饰键 g=flex 权重 rep=长按连发 */
+var ROWS = [
+  [ {l:'Esc',k:'esc'}, {l:'F1',k:'f1'}, {l:'F2',k:'f2'}, {l:'F3',k:'f3'}, {l:'F4',k:'f4'},
+    {l:'F5',k:'f5'}, {l:'F6',k:'f6'}, {l:'F7',k:'f7'}, {l:'F8',k:'f8'},
+    {l:'F9',k:'f9'}, {l:'F10',k:'f10'}, {l:'F11',k:'f11'}, {l:'F12',k:'f12'},
+    {l:'Del',k:'delete',cls:'nav'} ],
+  [ {l:'`',sub:'~',k:'`'}, {l:'1',sub:'!',k:'1'}, {l:'2',sub:'@',k:'2'}, {l:'3',sub:'#',k:'3'},
+    {l:'4',sub:'$',k:'4'}, {l:'5',sub:'%',k:'5'}, {l:'6',sub:'^',k:'6'}, {l:'7',sub:'&',k:'7'},
+    {l:'8',sub:'*',k:'8'}, {l:'9',sub:'(',k:'9'}, {l:'0',sub:')',k:'0'},
+    {l:'-',sub:'_',k:'-'}, {l:'=',sub:'+',k:'='}, {l:'Bksp',k:'backspace',g:2,rep:1},
+    {l:'Home',k:'home',cls:'nav'} ],
+  [ {l:'Tab',k:'tab',g:1.5}, {l:'Q',k:'q'}, {l:'W',k:'w'}, {l:'E',k:'e'}, {l:'R',k:'r'},
+    {l:'T',k:'t'}, {l:'Y',k:'y'}, {l:'U',k:'u'}, {l:'I',k:'i'}, {l:'O',k:'o'}, {l:'P',k:'p'},
+    {l:'[',sub:'{',k:'['}, {l:']',sub:'}',k:']'}, {l:'\\',sub:'|',k:'\\',g:1.4},
+    {l:'PgUp',k:'pageup',cls:'nav'} ],
+  [ {l:'Caps',k:'caps',g:1.8}, {l:'A',k:'a'}, {l:'S',k:'s'}, {l:'D',k:'d'}, {l:'F',k:'f'},
+    {l:'G',k:'g'}, {l:'H',k:'h'}, {l:'J',k:'j'}, {l:'K',k:'k'}, {l:'L',k:'l'},
+    {l:';',sub:':',k:';'}, {l:"'",sub:'"',k:"'"}, {l:'Enter',k:'enter',g:2.1},
+    {l:'PgDn',k:'pagedown',cls:'nav'} ],
+  [ {l:'Shift',m:'shift',g:2.3}, {l:'Z',k:'z'}, {l:'X',k:'x'}, {l:'C',k:'c'}, {l:'V',k:'v'},
+    {l:'B',k:'b'}, {l:'N',k:'n'}, {l:'M',k:'m'}, {l:',',sub:'<',k:','}, {l:'.',sub:'>',k:'.'},
+    {l:'/',sub:'?',k:'/'}, {l:'Shift',m:'shift',g:2.1}, {l:'↑',k:'up',cls:'nav',rep:1},
+    {l:'End',k:'end',cls:'nav'} ],
+  [ {l:'Ctrl',m:'ctrl',g:1.3}, {l:'Win',m:'gui',g:1.2}, {l:'Alt',m:'alt',g:1.2},
+    {l:'',k:' ',g:6.2}, {l:'Alt',m:'alt',g:1.2}, {l:'Menu',k:'menu',g:1.3},
+    {l:'Ctrl',m:'ctrl',g:1.3}, {l:'←',k:'left',cls:'nav',rep:1}, {l:'↓',k:'down',cls:'nav',rep:1},
+    {l:'→',k:'right',cls:'nav',rep:1} ]
+];
+
+function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function bindKey(el, def){
+  var timer = null, interval = null;
+  function fire(){
+    if (def.m) return;
+    if (heldMods.size) markHeldModsUsed();
+    kbKey(def.k);
+    if (def.k === 'caps'){ toast('Caps Lock 已切换，请看顶部状态'); setTimeout(poll, 700); }
+  }
+  function stop(){
+    clearTimeout(timer); clearInterval(interval);
+    timer = interval = null;
+    el.classList.remove('pressed');
+    if (def.m){
+      heldMods.delete(def.m);                  // 松手即失效，不留下任何粘滞状态
+      if (!el._comboUsed) sendModKey(def.m);  // 纯单击 -> 像普通键一样发一次
+      el._comboUsed = false;
+    }
+  }
+  el.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    el.setPointerCapture(e.pointerId);
+    el.classList.add('pressed');
+    el._comboUsed = false;
+    if (def.m){ heldMods.add(def.m); return; }  // 按住期间可配合另一指做组合键
+    fire();
+    if (def.rep) timer = setTimeout(function(){ interval = setInterval(fire, 110); }, 380);
+  });
+  el.addEventListener('pointerup', stop);
+  el.addEventListener('pointercancel', stop);
+}
+
+function buildKeyboard(){
+  var box = document.getElementById('kb');
+  ROWS.forEach(function(row){
+    var r = document.createElement('div'); r.className = 'kbrow';
+    row.forEach(function(def){
+      var b = document.createElement('div');
+      b.className = 'key' + (def.m ? ' mod' : '') + (def.cls ? ' ' + def.cls : '');
+      b.style.flexGrow = def.g || 1;
+      if (def.m) b.dataset.m = def.m;
+      b.innerHTML = '<span>' + (def.l ? escapeHtml(def.l) : '&nbsp;') + '</span>' +
+                    (def.sub ? '<span class="sub">' + escapeHtml(def.sub) + '</span>' : '');
+      bindKey(b, def);
+      r.appendChild(b);
+    });
+    box.appendChild(r);
+  });
+}
+buildKeyboard();
+
+/* ====================== 触控板 ====================== */
+var pending = {dx:0, dy:0, wheel:0, btn:0};
+var mouseDirty = false, mouseSending = false, lastFlush = 0;
+
+function sens(){ return parseFloat(document.getElementById('sens').value) || 1; }
+function clamp(v){ return Math.max(-127, Math.min(127, Math.round(v))); }
+function queueMouse(){ mouseDirty = true; flushMouse(); }
+
+async function flushMouse(){
+  if (mouseSending) return;
+  mouseSending = true;
+  while (mouseDirty){
+    var wait = 28 - (Date.now() - lastFlush);
+    if (wait > 0) await sleep(wait);
+    var q = '/mouse?dx=' + clamp(pending.dx) + '&dy=' + clamp(pending.dy) +
+            '&wheel=' + clamp(pending.wheel) + '&btn=' + pending.btn;
+    pending.dx = pending.dy = pending.wheel = 0;
+    mouseDirty = false;
+    lastFlush = Date.now();
+    try { await fetch(q, {method:'POST'}); }
+    catch(e){ document.getElementById('padst').textContent = '发送失败'; }
+  }
+  mouseSending = false;
+}
+
+var pad = document.getElementById('pad');
+var scrollBar = document.getElementById('scroll');
+var last = null, padActive = false, scrollActive = false;
+
+pad.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+pad.addEventListener('pointerdown', function(e){
+  if (e.target === scrollBar || scrollBar.contains(e.target)) return;
+  e.preventDefault();
+  pad.setPointerCapture(e.pointerId);
+  pad.classList.add('act');
+  padActive = true;
+  last = {x:e.clientX, y:e.clientY};
+  /* 触控区只负责移动指针，绝不发按键：点击一律交给下方三枚按钮 */
+});
+pad.addEventListener('pointermove', function(e){
+  if (!padActive || scrollActive) return;
+  e.preventDefault();
+  pending.dx += (e.clientX - last.x) * sens();
+  pending.dy += (e.clientY - last.y) * sens();
+  last = {x:e.clientX, y:e.clientY};
+  queueMouse();
+});
+function endPad(){
+  if (!padActive) return;
+  padActive = false; pad.classList.remove('act'); last = null;
+}
+pad.addEventListener('pointerup', endPad);
+pad.addEventListener('pointercancel', endPad);
+
+scrollBar.addEventListener('pointerdown', function(e){
+  e.preventDefault(); e.stopPropagation();
+  scrollBar.setPointerCapture(e.pointerId);
+  scrollActive = true;
+  last = {x:e.clientX, y:e.clientY};
+});
+scrollBar.addEventListener('pointermove', function(e){
+  if (!scrollActive) return;
+  e.preventDefault();
+  pending.wheel += clamp((last.y - e.clientY) / 4);
+  last = {x:e.clientX, y:e.clientY};
+  queueMouse();
+});
+function endScroll(){ scrollActive = false; }
+scrollBar.addEventListener('pointerup', endScroll);
+scrollBar.addEventListener('pointercancel', endScroll);
+
+function clickBtn(v){
+  pending.btn = v; queueMouse();
+  setTimeout(function(){ pending.btn = 0; queueMouse(); }, 50);
+}
+document.getElementById('bl').addEventListener('pointerdown', function(e){ e.preventDefault(); clickBtn(1); });
+document.getElementById('bm').addEventListener('pointerdown', function(e){ e.preventDefault(); clickBtn(4); });
+document.getElementById('br').addEventListener('pointerdown', function(e){ e.preventDefault(); clickBtn(2); });
+
+/* ====================== 状态 ====================== */
+async function poll(){
+  try {
+    var r = await fetch('/status'); var j = await r.json();
+    if (j.fw) document.getElementById('fw').textContent = 'v' + j.fw;
+    if (typeof j.caps === 'number'){
+      if (j.caps){
+        if (!capsAutoFixed) capsOn = true;      // 只在未纠正过时采纳"开"
+      } else {
+        capsOn = false; capsAutoFixed = false;  // 主机确认已关，恢复自动检测
+      }
+      syncCapsUI();
+    }
+    st.innerHTML = (j.usb ? 'USB 已接电脑' : '<b>USB 未接电脑</b>') +
+                   (capsOn ? ' · <b>Caps 开</b>' : '') +
+                   '<br>' + j.clients + ' 台设备 · 队列 ' + j.queue + (j.typing ? ' · 输入中' : '');
+  } catch(e){ st.textContent = '已断开'; }
+}
+setInterval(poll, 3000);
+poll();
+updateHint();
+syncCapsUI();
+document.getElementById('scriptpre').textContent = DECODE_SCRIPT;
+var one = document.getElementById('oneshot');
+try { one.checked = localStorage.getItem('tk_oneshot') === '1'; } catch(e){}
+one.addEventListener('change', function(){
+  try { localStorage.setItem('tk_oneshot', this.checked ? '1' : '0'); } catch(e){}
+});
+</script>
+</body>
+</html>
